@@ -61,4 +61,5 @@ Mirrors BCUK-Bot-4's rules (decided 2026-11-26). Docs-only PRs follow them too.
 - **The reviewer closes its own threads** (CodeRabbit, Qlty or a person), after checking the fix. Reply on the thread saying what changed and the commit; do not resolve it yourself.
 - **Nobody merges without the owner's say-so.** Agents never approve or merge.
 - CodeRabbit's free OSS review allowance is limited (the next review can be about an hour away). When it is used up, wait for it rather than merging without the review.
+- **The agent monitoring the PR requests the review.** CodeRabbit does not always review automatically (drafts, a used-up limit). When a push has no review on the current head, the monitoring agent posts `@coderabbitai review` on the PR once the allowance has reset, without waiting to be asked, and says so. Pushes that need a fresh review are batched, since each one needs its own review.
 - Add further rules here as they come up, with the date they were decided.
