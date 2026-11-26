@@ -112,7 +112,7 @@ Server-rendered EJS (`views/`, `views/partials/`) with small plain browser scrip
 | 4 | SSO needs a bot-side surface (token issuer or role-check API). This is a bot change, deferred until the owner agrees. | #13, Phase 6 |
 | 5 | Multi-guild role mapping for the manager is undecided. | #13 |
 | 6 | No WebSocket server exists in the bot; if the manager's console streaming wants one, that is a new choice, with SSE as the conforming default. | #11 |
-| 7 | The bot's backup script dumps its database only; `.env` and upload folders are backed up by hand. The manager's DB, config and supervisor state need their own backup story. | #10, #12, Phase 5 |
+| 7 | The bot's backup script dumps its database only; `.env` and upload folders need separate backups (the README says so; whether they are done on the host is for #10 to check). The manager's DB, config and supervisor state need their own backup story. | #10, #12, Phase 5 |
 | 8 | The bot's sandbox blocks child-process-heavy work by design. Resource contention (CPU, memory, disk) between game servers and the bot on one machine is a host question. | #10 |
 
 ## 8. Recheck log
