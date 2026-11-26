@@ -50,3 +50,15 @@ Practical notes: the GitHub tools cannot create a label that does not exist: cre
 - Docs-only changes may go straight to `main` when the owner has said so; otherwise use a branch and a draft PR.
 - The `workflow-guard` and `precommit` hooks belong to BCUK-Bot-4's session setup and may block `git commit` when working here. They do not apply to this repo; if one blocks you, ask the owner instead of working around it.
 - Add this repo's own build, lint, test and commit conventions here once #17 (project scaffold) and #11 (stack ADR) define them.
+
+## PR review and merge rules
+
+Mirrors BCUK-Bot-4's rules (decided 2026-11-26). Docs-only PRs follow them too.
+
+- **A clean CodeRabbit review is required before merging.** Every finding is fixed (after checking it against the source, since some are wrong) or explicitly accepted by the owner, and CodeRabbit's **Merge Risk** is resolved or explicitly accepted. A review that only says "addressed" on its threads, or a review of an earlier commit, does not count: it must cover the current head.
+- **Qlty's findings are this repo's standards.** Never dismiss or resolve one without fixing it.
+- **CI is the gate, not a local run.** A PR is not done until its checks are green on the current head.
+- **The reviewer closes its own threads** (CodeRabbit, Qlty or a person), after checking the fix. Reply on the thread saying what changed and the commit; do not resolve it yourself.
+- **Nobody merges without the owner's say-so.** Agents never approve or merge.
+- CodeRabbit's free OSS review allowance is limited (the next review can be about an hour away). When it is used up, wait for it rather than merging without the review.
+- Add further rules here as they come up, with the date they were decided.
