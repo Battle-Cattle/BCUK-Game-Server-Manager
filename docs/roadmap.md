@@ -4,6 +4,18 @@ Planned 2026-11-26 against `main` @ `f571055` (README only). This is the plan th
 
 Every phase is a parent issue, split into numbered sub-issues (`<topic> n/N: ...`) that are linked as real GitHub sub-issues. The parent's Priority and severity are the highest of its parts. Phases 1 to 7 are **provisional until Phase 0's decisions land**: recheck each against the ADRs and add a dated note rather than silently rewriting.
 
+## Owner decisions (2026-11-26)
+
+Answers from the repo owner while planning. Each still gets verified and recorded as an ADR in Phase 0; they set the direction, they don't replace the assessment.
+
+| Question | Decision | Recorded in |
+|---|---|---|
+| Where is the manager deployed? | The same machine as BCUK-Bot-4 (shared host, systemd and reverse proxy; the supervisor and manager still run as their own services, separate from the bot) | #10 |
+| Which stack? | Node/TypeScript throughout, matching the bot | #11, #12 |
+| First Minecraft edition? | Java, Vanilla first. Paper, other Java distributions and Bedrock stay deferred (#47); plugin/mod management (#46) does not apply to Vanilla | #14 |
+| Is Hytale dedicated server software available? | Yes, available now (to be verified against the real software, not assumed) | #15 |
+| Where do the bot-side issues live? | Only in this repo for now (#65 to #68); mirrored into BCUK-Bot-4 only when the owner asks | #7 |
+
 ## Phases
 
 | Phase | Parent | Parts | Priority | Severity | Goal |
@@ -57,7 +69,7 @@ These come straight from the spec and are repeated in the issues that enforce th
 - **Zero players is the sole inactivity condition.** It needs a valid, fresh count; an unavailable or stale count suspends the countdown and is never zero. Never CPU, memory, network or console activity. Never enabled by inference on import. Graceful shutdown only; no silent force-kill.
 - **Unsupported is explicit.** Adapters declare only what they genuinely support; the UI hides or marks the rest.
 - **The manager owns its data.** Own database; world files, logs and backups stay on the filesystem.
-- **Bot-side work stays in the bot.** Phase 6 records it here so the plan has one home; it is mirrored to BCUK-Bot-4 issues, following that repo's rules, when it is ready to build.
+- **Bot-side work stays in the bot.** Phase 6 records it here so the plan has one home; it is mirrored to BCUK-Bot-4 issues, following that repo's rules, when the owner asks.
 
 ## Issue conventions
 
@@ -69,10 +81,6 @@ Mirrors BCUK-Bot-4's issue management:
 - Close the last open sub-issue to complete the parent. A part found unnecessary is closed as "not planned", with a note on the parent.
 - Issues record the commit they were checked against; add a dated note with the new sha when rechecking.
 
-## Open questions for the owner
+## Still open
 
-1. **Host:** is the manager deployed on the same machine as BCUK-Bot-4 or elsewhere? (#10)
-2. **Stack:** the bot's Node/TypeScript stack, or something else, particularly for the supervisor? (#11, #12)
-3. **Minecraft:** Java, Bedrock or both first, and which implementation? (#14)
-4. **Hytale:** is dedicated server software available and permitted to run unattended? (#15)
-5. **Bot-side issues:** should the Phase 6 bot work be created in BCUK-Bot-4 now or only when Phase 2 is done?
+Nothing is blocking Phase 0. What remains are verifications, not questions: the Hytale server's availability and unattended-install terms (#15), Vanilla's player-count source and backup behaviour (#14), and confirming the Node/TypeScript supervisor design (#12).
