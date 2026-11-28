@@ -52,7 +52,7 @@ Output of [#10](https://github.com/Battle-Cattle/BCUK-Game-Server-Manager/issues
 - Single root filesystem `/dev/sda1`, ext4 (`rw,relatime,discard,errors=remount-ro,commit=30`), 96 GB, **34 GB used, 63 GB free (35%)**. `/boot` 1 GB, `/boot/efi` 105 MB. Inodes 2% used. There is **no second volume** for backups or game data.
 - The bot's own growth is capped by its settings (1 GB per streamer and 10 GB for the shared library by default, per the bot's README), which together could use a large share of the 63 GB. Game worlds, server installs and backups need their own quotas or a disk-use check in the manager (#55 covers disk monitoring, #56 backups on separate storage and #58 retention).
 - The journal is persistent and uses 3.8 GB, which is also on this disk.
-- **Suggested layout, not a decision** (for #11 and #12 to confirm): keep the manager and supervisor out of `/home`, under their own service users, for example code under `/opt/`, state and database under `/var/lib/`, and server installs and worlds under `/srv/`, each owned by the supervisor's user and mode 750 or tighter. That keeps them out of the bot's `ProtectHome=tmpfs` view and the `ubuntu` account's reach.
+- **Suggested layout, not a decision** (for #11 and #12 to confirm): keep the manager and supervisor out of `/home`, under their own service users, for example code under `/opt/`, state and database under `/var/lib/`, and server installs and worlds under `/srv/`, each owned by the supervisor's user and mode 750 or tighter. That keeps them out of the bot's `ProtectHome=tmpfs` view and out of reach of the `ubuntu` account when it is not using sudo. Because `ubuntu` has passwordless sudo, this layout does not stop root access from that account; removing or restricting that sudo is a separate decision (open item 2).
 
 ## 5. Resource contention (probe section 8)
 
@@ -74,14 +74,14 @@ Output of [#10](https://github.com/Battle-Cattle/BCUK-Game-Server-Manager/issues
 
 - `bcuk-bot`, `caddy` and `mysql` are enabled at boot, so they come back by themselves. A game server is not a unit today, so nothing restarts it: the manager needs an explicit policy for what starts again after a reboot.
 - The last six boots (2026-09-27 to now) lasted between 2 and 24 days. Each boot began about 8 to 10 seconds after the previous one's last journal entry, which looks like clean reboots rather than power loss. `unattended-upgrades` is running and kernel livepatch is installed. Whether automatic reboots are enabled was **not checked**.
-- Root is ext4 with a journal (`commit=30`, `discard`, `errors=remount-ro`), so it recovers from an unclean stop by replaying the journal, but up to about 30 seconds of recent writes can be lost. How the provider treats host power loss, and whether it offers snapshots, is unknown.
+- Root is ext4 with a journal. After an unclean stop it replays the journal to keep the filesystem structure consistent, but that does not guarantee consistent file contents, and `commit=30` is only the journal's commit interval, not a bound on lost data: what survives depends on what applications had flushed to disk and on the storage's own behaviour. MySQL and any game world therefore need their own flush and backup safety, and #12 should not take 30 seconds as a recovery point. How the provider treats host power loss, and whether it offers snapshots, is unknown.
 - `last` is not installed, so a reboot/shutdown history beyond the journal's boot list was not available.
 
 ## 8. How a manager deployment avoids interfering with the bot
 
 - The bot's `deploy.sh` restarts exactly one unit (`systemctl restart bcuk-bot`), checks `/healthz`, and rolls back inside the bot's checkout. It never touches other units. The manager and supervisor therefore need **different unit names, different directories and their own deploy script**, and the bot's deploy must not be able to reach them.
 - On this host the bot's sudoers rule gives no isolation, because the same account has full sudo. Real separation comes from separate users: a bot deploy runs as `ubuntu`, so the supervisor's state, unit files and game data should be owned by other users that `ubuntu` has no business with (although `ubuntu` can still sudo; the owner may want to decide whether that is acceptable).
-- A game server must survive a restart of the manager's web/API and of the bot. If the supervisor is a systemd service, children left in its cgroup are stopped when it stops, unless the unit sets `KillMode=process` or `none`, or each server runs in its own transient unit or scope. This is a core question for #12.
+- A game server must survive a restart of the manager's web/API and of the bot. If the supervisor is a systemd service, children left in its cgroup are stopped when it stops, unless the unit sets `KillMode=process` or `none`, or each server runs in its own transient unit or scope. Surviving is not enough, though: if the supervisor owns the only parent ends of the pipes (or the pty master) wired to a server's console, its exit closes them. The server then sees end-of-file on input or `SIGPIPE`/`EPIPE` on output (a closed pty master hangs up the session), and a replacement supervisor cannot recover those descriptors. So `KillMode` alone does not keep console control. A persistent console endpoint is an additional requirement: for example a FIFO or socket held by systemd or a small separate broker process, or a multiplexer such as `tmux` that keeps the pty. This is a core question for #12.
 - Give game servers their own slice (a name for #12 to choose) so `MemoryMax`, `CPUWeight` and `TasksMax` apply to them as a group without touching `bcuk-bot.service` or `mysql`.
 
 ## 9. Candidate supervision mechanisms on this host
@@ -90,22 +90,22 @@ Facts only; the choice is #12's.
 
 | Mechanism | Process identity and rediscovery | Console access | Limits and isolation | Needs on this host |
 |---|---|---|---|---|
-| Own Node supervisor daemon spawning children | Verify executable, owner and start time from `/proc` ourselves; keep our own state file | Pipes or a pty we own, fully controllable | Only what the unit and `setrlimit` give, unless children are placed in cgroups | A unit with `KillMode` that lets children outlive it; its own service user |
-| systemd transient units (`systemd-run --unit …`) | The unit name and its cgroup are the identity, immune to PID reuse; `systemctl` and D-Bus list them after any restart | Needs stdin wiring (socket, FIFO or pty), which is the awkward part | Native `MemoryMax`, `CPUQuota`, sandbox properties per server | System manager: privilege (root, or a polkit rule for the service user). User manager: linger, which is off |
-| `tmux` or `screen` sessions | Session name plus PID, weakest identity; rediscovery by `tmux ls` for that user | Easy: attach, `send-keys` | None unless combined with a scope; the processes sit in whichever cgroup started tmux | The tools exist; same `KillMode` issue as the first row |
+| Own Node supervisor daemon spawning children | Verify executable, owner and start time from `/proc` ourselves; keep our own state file | Pipes or a pty we own, fully controllable while we run; the descriptors close when the daemon exits, so a restart loses console control unless a persistent endpoint is added (section 8) | Only what the unit and `setrlimit` give, unless children are placed in cgroups | A unit with `KillMode` that lets children outlive it; its own service user |
+| systemd transient units (`systemd-run --unit …`) | The unit name and its cgroup are the identity, immune to PID reuse; `systemctl` and D-Bus list them after a supervisor restart, but a host reboot removes them, so server configuration must be persistent | Needs stdin wiring (socket, FIFO or pty), which is the awkward part | Native `MemoryMax`, `CPUQuota`, sandbox properties per server | System manager: privilege (root, or a polkit rule for the service user). User manager: linger, which is off |
+| `tmux` or `screen` sessions | Session name plus PID, weakest identity; rediscovery by `tmux ls` for that user | Easy: attach, `send-keys`; the tmux server holds the pty, so the console survives a supervisor restart (not a host reboot) | None unless combined with a scope; the processes sit in whichever cgroup started tmux | The tools exist; same `KillMode` issue as the first row |
 
 ## 10. Risks and open items
 
 | # | Item | For |
 |---|---|---|
 | 1 | No swap and no resource limits: one memory-hungry game server can trigger the OOM killer against MySQL or the bot | #12 |
-| 2 | The bot's account has full passwordless sudo, so a process running as it is not isolated from root. The manager and supervisor need their own service users | #11, #12 |
+| 2 | The bot's account has full passwordless sudo, so a process running as it is not isolated from root. The manager and supervisor need their own service users; removing or restricting that account's sudo is a separate decision for the owner | #11, #12 |
 | 3 | No host firewall rules; whether the provider's firewall filters inbound traffic, and any DDoS protection for game ports, is unknown | owner, #12 |
 | 4 | Single disk: backups and game data share it with the database. Off-host copy or provider snapshots needed; disk quotas for worlds and installs | owner, #12, Phase 5 |
 | 5 | Nightly backups: no `ubuntu` crontab; root crontab and systemd timers were not probed | owner |
 | 6 | Automatic reboot setting for `unattended-upgrades`, and the provider's behaviour on power loss, unknown | owner |
 | 7 | `servers.bcuk.co.uk`: no Caddy site yet, DNS not checked; Caddy's scan jail and logging need a decision for the new site | #11, Phase 6 |
-| 8 | A supervisor under systemd must not take its servers down on restart (`KillMode`, or one unit per server) | #12 |
+| 8 | A supervisor under systemd must not take its servers down on restart (`KillMode`, or one unit per server), and console descriptors must outlive it (persistent FIFO, socket, broker or multiplexer) | #12 |
 | 9 | Only OpenJDK 25 is installed; whether it suits the chosen Minecraft version is for #14 | #14 |
 | 10 | The live bot is at `55ff49d`, newer than the `1b5555b` assessed in `bot-assessment.md`; recheck `deploy.sh`, the unit template and the installer | #9 recheck |
 | 11 | The content of the bot's sudoers file was redacted by the probe; confirm it | owner |
