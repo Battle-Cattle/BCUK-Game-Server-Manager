@@ -54,7 +54,7 @@ Three options (manual, "Server Files"):
   ```
 
 - **Authentication.** `/auth login device` prints a code and URL (`accounts.hytale.com/device`), valid for 900 seconds, and the server then reports `Mode: OAUTH_DEVICE`. Credentials are stored in `auth.enc` and `auth.key`. `--auth-mode <authenticated|offline>` exists, default `AUTHENTICATED`. The manual says authenticated servers are needed to talk to Hytale's service APIs and "to counter abuse". *Confirmed.* What `offline` allows, and whether it is permitted for hosting, is **unconfirmed**.
-- **Terms.** Whether unattended installation by a third-party tool is permitted is not stated in the manual. The *Server Provider Authentication Guide* is the place to check. **Unconfirmed; owner to read it** (see section 10).
+- **Terms.** Whether unattended installation by a third-party tool is permitted is not stated in the manual. The *Server Provider Authentication Guide* is the place to check. **Unconfirmed; owner to read it** (see section 11).
 
 ## 3. Runtime, launch, ports and shutdown
 
@@ -70,7 +70,7 @@ Three options (manual, "Server Files"):
 
 - The console accepts slash commands, seen in the manual: `/auth login device`, `/update check|download|apply --confirm|cancel|status|patchline|setup`. A `--allow-op` flag exists and `permissions.json` holds the permission configuration. *Confirmed.*
 - **Not stated:** how input reaches the console when the server is run headless (stdin, a socket, or a plugin), whether output is machine-readable, and any command to list players or stop the server. The manual does not mention RCON.
-- **Third-party option (not verified):** a community plugin, HyRCON (`curseforge.com/hytale/mods/hyrcon`, MIT, source `dustinrouillard/hyrcon`), says it runs a TCP RCON server inside Hytale and forwards commands to the console. Its listing says it defaults to `0.0.0.0:25575` with the password `changeme` and states no encryption, rate limiting or command allow-list. Source code not reviewed, behaviour not tested, and only the "Early Access" game version is listed. **Unconfirmed; do not depend on it in the adapter until tested** (section 9).
+- **Third-party option (not verified):** a community plugin, HyRCON (`curseforge.com/hytale/mods/hyrcon`, MIT, source `dustinrouillard/hyrcon`), says it runs a TCP RCON server inside Hytale and forwards commands to the console. Its listing says it defaults to `0.0.0.0:25575` with the password `changeme` and states no encryption, rate limiting or command allow-list. Source code not reviewed, behaviour not tested, and only the "Early Access" game version is listed. **Unconfirmed; do not depend on it in the adapter until tested** (section 11).
 
 ## 5. Configuration, worlds and backup
 
@@ -129,7 +129,19 @@ Import must not enable inactivity shutdown, install a plugin, or modify files. I
 7. **Protocol is exact-match.** Clients and servers must match, so a server update is time-critical when the game updates. This matters for the update scheduler (#59/#60) and for the "update available" display. A "protocol tolerance" change is announced but not available.
 8. **Early Access.** Several features the manager would want (first-party query API, fallback servers, tolerance) are "coming soon". Capabilities must be re-verified when the game moves out of Early Access.
 
-## 10. Open items and what would unblock them
+## 10. Fit with the planned host
+
+From the host assessment ([host-assessment.md](host-assessment.md), #10; read there, not re-probed here):
+
+| Hytale need | Host (as assessed) | Consequence |
+|---|---|---|
+| Java 25 | One JDK installed, OpenJDK 25.0.5.1 | Meets the stated runtime. Whether the installed build is acceptable for the server (the manual recommends Adoptium Temurin) is unconfirmed |
+| x64 or arm64, 4 GB minimum RAM | x86_64, 11 GiB RAM, **no swap**, shared with the bot, MySQL and Caddy | One Hytale server fits; two or three alongside Minecraft may not. Per-server `MemoryMax` and OOM protection for MySQL and the bot are needed (ADR 0002). Hytale's view distance is its main RAM driver, so the launch definition should expose it and `-Xmx` |
+| UDP port per instance (default 5520) | No port conflicts; `ufw` inactive and iptables ACCEPT, provider firewall unknown | Opening a UDP game port may be a provider-side action. The owner needs to say whether a provider firewall exists |
+| Process survives manager restarts | Children of a systemd service stop with it unless the unit is set up otherwise, and pipes to the console are lost when the supervisor exits | Reinforces finding 4: console input must come from a persistent endpoint (FIFO, socket, broker or multiplexer) or from a plugin channel (ADR 0002) |
+| Disk for `Assets.zip`, worlds and backups | One 100 GB disk, 63 GB free | The launcher's `Assets.zip` was about 3.3 GB in the manual's example listing, per install. Per-instance quotas matter |
+
+## 11. Open items and what would unblock them
 
 | Open item | What would unblock it | Needed by |
 |---|---|---|
@@ -143,7 +155,7 @@ Import must not enable inactivity shutdown, install a plugin, or modify files. I
 | HyRCON suitability | Review the source and test behaviour and security | Optional, only if the console path needs it |
 | Sentry | Owner decides whether managed servers pass `--disable-sentry` | #48 |
 
-## 11. Effect on the Phase 4 issues (#5)
+## 12. Effect on the Phase 4 issues (#5)
 
 Provisional until the ADRs land; recheck each against them and add a dated note.
 
